@@ -1,0 +1,6 @@
+{
+  "name": "ระบบจองคิวคลินิกแพทย์แผนไทย - Clinic Master Calendar",
+  "description": "ระบบบริหารจัดการนัดหมายและปฏิทินรวมคลินิกการแพทย์แผนไทย (Clinic Master Calendar) พร้อมระบบจัดคิวผู้ช่วยแพทย์แผนไทย 9 ท่านและเงื่อนไขห้องอบสมุนไพร",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
