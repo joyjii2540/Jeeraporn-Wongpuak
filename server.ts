@@ -1,6 +1,7 @@
 import express from 'express';
 import type { Request, Response } from 'express';
 import { createServer as createViteServer } from 'vite';
+import http from 'http';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { CLINIC_SERVICES, CLINIC_STAFF, CLINIC_TIME_SLOTS } from './src/types/clinic.ts';
@@ -199,10 +200,16 @@ app.post('/api/auth/login', (req: Request, res: Response) => {
 
 async function startServer() {
   const PORT = Number(process.env.PORT) || 3000;
+  const httpServer = http.createServer(app);
 
   if (process.env.NODE_ENV !== 'production') {
+    // Share the HTTP server so the HMR WebSocket uses the same origin/port as the page,
+    // instead of a separate port that proxied previews cannot reach.
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: process.env.DISABLE_HMR === 'true' ? false : { server: httpServer },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
@@ -213,7 +220,7 @@ async function startServer() {
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
+  httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Clinic Master Calendar Server is running at http://0.0.0.0:${PORT}`);
   });
 }
