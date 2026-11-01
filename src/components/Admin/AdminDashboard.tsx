@@ -101,7 +101,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         setLoginError(res.error || 'ชื่อผู้ใช้หรือรหัสผ่านไม่ถูกต้อง');
       }
     } catch (err: any) {
-      setLoginError(err.message || 'ไม่สามารถเข้าสู่ระบบได้');
+      setLoginError(err?.message || 'ไม่สามารถเข้าสู่ระบบได้ กรุณาลองใหม่อีกครั้ง');
     } finally {
       setIsLoggingIn(false);
     }
@@ -110,12 +110,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const handleQuickLogin = async (user: string, pass: string) => {
     setUsername(user);
     setPassword(pass);
+    setLoginError(null);
     setIsLoggingIn(true);
     try {
       const res = await ClinicApi.login(user, pass);
       if (res.success && res.token) {
         onLoginSuccess(res.token, res.user);
+      } else {
+        setLoginError(res.error || 'ไม่สามารถเข้าสู่ระบบได้');
       }
+    } catch (err: any) {
+      setLoginError(err?.message || 'ไม่สามารถเข้าสู่ระบบได้ กรุณาลองใหม่อีกครั้ง');
     } finally {
       setIsLoggingIn(false);
     }
