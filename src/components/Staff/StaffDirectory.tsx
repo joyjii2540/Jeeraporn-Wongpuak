@@ -1,15 +1,26 @@
-import React from 'react';
-import { CLINIC_STAFF, CLINIC_SERVICES } from '../../types/clinic';
+import React, { useState, useEffect } from 'react';
+import { CLINIC_STAFF, CLINIC_SERVICES, Staff } from '../../types/clinic';
+import { ClinicApi } from '../../services/api';
 import { UserCheck, ShieldCheck, HeartHandshake, Sparkles, Flame, CheckCircle2, Phone } from 'lucide-react';
 
 export const StaffDirectory: React.FC = () => {
+  const [staffList, setStaffList] = useState<Staff[]>(CLINIC_STAFF);
+
+  useEffect(() => {
+    ClinicApi.getStaff().then((list) => {
+      if (list && list.length > 0) {
+        setStaffList(list);
+      }
+    });
+  }, []);
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
       {/* Header */}
       <div className="text-center max-w-2xl mx-auto space-y-2">
         <div className="flex items-center justify-center gap-2 text-xs font-semibold text-emerald-700 uppercase tracking-wider">
           <UserCheck className="w-4 h-4" />
-          <span>ทีมผู้ช่วยแพทย์แผนไทยประจำคลินิก (9 ท่าน)</span>
+          <span>ทีมผู้ช่วยแพทย์แผนไทยประจำคลินิก ({staffList.length} ท่าน)</span>
         </div>
         <h2 className="text-2xl sm:text-3xl font-bold text-stone-900 tracking-tight">
           รายชื่อและสิทธิ์การให้บริการ (Staff Capabilities)
@@ -38,7 +49,7 @@ export const StaffDirectory: React.FC = () => {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2 text-xs">
             <div className="bg-stone-800/80 p-3 rounded-xl border border-stone-700">
               <strong className="text-emerald-400 block font-semibold mb-0.5">นวดประคบ</strong>
-              <span className="text-stone-300">ให้บริการได้ทั้ง 9 ท่าน</span>
+              <span className="text-stone-300">ให้บริการได้ทุกท่าน</span>
             </div>
             <div className="bg-stone-800/80 p-3 rounded-xl border border-stone-700">
               <strong className="text-amber-400 block font-semibold mb-0.5">มารดาหลังคลอด</strong>
@@ -57,19 +68,18 @@ export const StaffDirectory: React.FC = () => {
 
         <div className="lg:col-span-5 h-64 lg:h-full min-h-[220px]">
           <img
-            src="/src/assets/images/thai_herbal_pot_1792986606686.jpg"
+            src="/assets/images/thai_herbal_pot_1792986606686.jpg"
             alt="ตำรับสมุนไพรไทยและหม้อเกลือ"
             className="w-full h-full object-cover"
-            referrerPolicy="no-referrer"
           />
         </div>
       </div>
 
-      {/* 9 Staff Cards Grid */}
+      {/* Staff Cards Grid */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {CLINIC_STAFF.map((staff, idx) => {
-          const isPostpartumSpecialist = staff.id === 'staff_3' || staff.id === 'staff_6';
-          const isSaunaSpecialist = staff.id === 'staff_3' || staff.id === 'staff_5' || staff.id === 'staff_6';
+        {staffList.map((staff, idx) => {
+          const isPostpartumSpecialist = staff.qualifiedServices?.includes('postpartum_care') || staff.id === 'staff_3' || staff.id === 'staff_6';
+          const isSaunaSpecialist = staff.qualifiedServices?.includes('herbal_sauna') || staff.id === 'staff_3' || staff.id === 'staff_5' || staff.id === 'staff_6';
 
           return (
             <div
@@ -78,12 +88,16 @@ export const StaffDirectory: React.FC = () => {
             >
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-stone-100 border border-stone-200 flex items-center justify-center font-bold font-mono text-stone-700 text-sm">
-                    {idx + 1}
+                  <div className="w-12 h-12 rounded-xl overflow-hidden border border-stone-200 bg-emerald-50 flex items-center justify-center font-bold text-stone-700 text-sm shrink-0">
+                    {staff.avatarUrl ? (
+                      <img src={staff.avatarUrl} alt={staff.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <span className="font-mono text-emerald-800">{idx + 1}</span>
+                    )}
                   </div>
                   <div>
                     <h4 className="font-bold text-stone-900 text-base">
-                      คุณ{staff.name}
+                      คุณ{staff.name} {staff.nickname ? `(${staff.nickname})` : ''}
                     </h4>
                     <span className="text-xs text-stone-500 font-mono">
                       {staff.code} · {staff.role}

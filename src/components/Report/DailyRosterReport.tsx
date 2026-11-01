@@ -58,18 +58,25 @@ export const DailyRosterReport: React.FC<DailyRosterReportProps> = ({ onBack, in
     'staff_1', // พัชรา
   ]);
 
-  const [showAllStaff, setShowAllStaff] = useState<boolean>(false);
+  const [staffList, setStaffList] = useState<Staff[]>(CLINIC_STAFF);
+  const [showAllStaff, setShowAllStaff] = useState<boolean>(true);
 
   const activeStaffList: Staff[] = showAllStaff
-    ? CLINIC_STAFF
-    : CLINIC_STAFF.filter((s) => selectedStaffIds.includes(s.id));
+    ? staffList
+    : staffList.filter((s) => selectedStaffIds.includes(s.id));
 
   const fetchBookings = async () => {
     setIsLoading(true);
     try {
-      const all = await ClinicApi.getBookings();
+      const [all, staff] = await Promise.all([
+        ClinicApi.getBookings(),
+        ClinicApi.getStaff(),
+      ]);
       const filtered = all.filter((b) => b.date === reportDate && b.status !== 'cancelled');
       setDayBookings(filtered);
+      if (staff && staff.length > 0) {
+        setStaffList(staff);
+      }
     } catch (err) {
       console.error('Error loading report bookings:', err);
     } finally {
@@ -347,7 +354,7 @@ export const DailyRosterReport: React.FC<DailyRosterReportProps> = ({ onBack, in
               />
             </div>
             <h1 className="text-base sm:text-lg font-bold text-stone-900 font-sans tracking-tight">
-              ตารางนัดผู้รับบริการคลินิกแพทย์แผนไทย {shiftType === 'overtime' ? '(นอกเวลาราชการ)' : '(ในเวลาราชการ)'} โรงพยาบาลพระนครศรีอยุธยา
+              ตารางนัดผู้รับบริการคลินิกแพทย์แผนไทย {shiftType === 'overtime' ? '(นอกเวลาราชการ)' : '(ในเวลาราชการ)'} ตึกแพทย์แผนไทย ศูนย์เวชปฏิบัติครอบครัว รพ.อยุธยา
             </h1>
           </div>
           <div className="text-[11px] text-stone-500">

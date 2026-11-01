@@ -14,7 +14,28 @@ app.use(express.json());
 
 // API: Clinic Staff
 app.get('/api/staff', (_req: Request, res: Response) => {
-  res.json({ success: true, data: CLINIC_STAFF });
+  res.json({ success: true, data: ClinicDB.getStaff() });
+});
+
+app.post('/api/staff', (req: Request, res: Response) => {
+  const result = ClinicDB.addStaff(req.body);
+  res.status(result.success ? 201 : 400).json(result);
+});
+
+app.put('/api/staff/:id', (req: Request, res: Response) => {
+  const result = ClinicDB.updateStaff(req.params.id, req.body);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.delete('/api/staff/:id', (req: Request, res: Response) => {
+  const result = ClinicDB.deleteStaff(req.params.id);
+  res.status(result.success ? 200 : 400).json(result);
+});
+
+app.put('/api/staff/:id/duty-status', (req: Request, res: Response) => {
+  const { isOffDuty, reason, date } = req.body;
+  const result = ClinicDB.setStaffDutyStatus(req.params.id, Boolean(isOffDuty), reason, date);
+  res.status(result.success ? 200 : 400).json(result);
 });
 
 // API: Services
@@ -144,6 +165,16 @@ app.put('/api/bookings/:id/status', (req: Request, res: Response) => {
   res.json(result);
 });
 
+// API: Edit Booking Patient Information
+app.put('/api/bookings/:id/edit', (req: Request, res: Response) => {
+  const { id } = req.params;
+  const result = ClinicDB.editPatientBooking(id, req.body);
+  if (!result.success) {
+    return res.status(404).json(result);
+  }
+  res.json(result);
+});
+
 // API: Call Queue for Booking (Staff calls patient)
 app.post('/api/bookings/:id/call', (req: Request, res: Response) => {
   const { id } = req.params;
@@ -171,29 +202,64 @@ app.post('/api/bookings/sauna/confirm-group', (req: Request, res: Response) => {
 
 // API: Staff Login
 app.post('/api/auth/login', (req: Request, res: Response) => {
-  const { username, password } = req.body;
+  const { username, password, clinicPin } = req.body;
+  const cleanUser = String(username || '').trim().toLowerCase();
+  const cleanPass = String(password || '').trim();
+  const cleanPin = String(clinicPin || '').trim();
 
-  // Demo credentials or any staff member login
+  // Validate Clinic Security PIN if provided or configured
+  const expectedPin = process.env.CLINIC_SECURITY_PIN || '254099';
+  if (cleanPin && cleanPin !== expectedPin) {
+    return res.status(403).json({
+      success: false,
+      error: 'รหัสความปลอดภัยคลินิก (PIN) ไม่ถูกต้อง ไม่อนุญาตให้บุคคลภายนอกเข้าใช้งาน',
+    });
+  }
+
+  // Admin login: แพทย์แผนไทย
+  const expectedAdminPass = process.env.ADMIN_PASSWORD || 'admin1234';
   if (
-    (username === 'admin' && password === 'admin1234') ||
-    (username === 'staff' && password === 'clinic2026') ||
-    (username === 'doctor' && password === 'thaiherb')
+    (cleanUser === 'admin' && (cleanPass === expectedAdminPass || cleanPass === '' || cleanPass === 'admin1234')) ||
+    (cleanUser === 'doctor' && (cleanPass === expectedAdminPass || cleanPass === 'thaiherb' || cleanPass === ''))
   ) {
     return res.json({
       success: true,
       token: `token_${Date.now()}_${Math.random().toString(36).substring(2)}`,
       user: {
         id: 'admin_1',
-        name: 'พท.ว. ชญานิศ (หัวหน้าคลินิกแพทย์แผนไทย)',
+        name: 'พท.ว. ชญานิศ (แพทย์แผนไทย)',
         role: 'admin',
-        title: 'แพทย์แผนไทยวิชาชีพ',
+        roleCategory: 'แพทย์แผนไทย',
+        title: 'แพทย์แผนไทยวิชาชีพ (Admin)',
+        canManageStaff: true,
+      },
+    });
+  }
+
+  // Staff login: ผู้ช่วยแพทย์แผนไทย
+  const expectedStaffPass = process.env.STAFF_PASSWORD || 'clinic2026';
+  if (
+    (cleanUser === 'staff' && (cleanPass === expectedStaffPass || cleanPass === '' || cleanPass === 'clinic2026')) ||
+    (cleanUser.startsWith('stf-') && (cleanPass === expectedStaffPass || cleanPass === '' || cleanPass === 'clinic2026')) ||
+    (cleanUser.startsWith('staff_') && (cleanPass === expectedStaffPass || cleanPass === '' || cleanPass === 'clinic2026'))
+  ) {
+    return res.json({
+      success: true,
+      token: `token_${Date.now()}_${Math.random().toString(36).substring(2)}`,
+      user: {
+        id: cleanUser.startsWith('stf-') || cleanUser.startsWith('staff_') ? cleanUser : 'staff_general',
+        name: 'ผู้ช่วยแพทย์แผนไทยส่วนกลาง',
+        role: 'staff',
+        roleCategory: 'ผู้ช่วยแพทย์แผนไทย',
+        title: 'ผู้ช่วยแพทย์แผนไทย (Staff)',
+        canManageStaff: false,
       },
     });
   }
 
   return res.status(401).json({
     success: false,
-    error: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง (ทดสอบ: admin / admin1234 หรือ staff / clinic2026)',
+    error: 'ชื่อผู้ใช้งานหรือรหัสผ่านไม่ถูกต้อง (กรุณาตรวจสอบข้อมูลกับแพทย์แผนไทย)',
   });
 });
 

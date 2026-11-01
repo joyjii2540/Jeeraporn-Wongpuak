@@ -357,15 +357,24 @@ export interface StaffSlotAvailability {
   postpartumDailyCount?: number;
 }
 
+export function isStaffOnDuty(staff: Staff, date?: string): boolean {
+  if (staff.active === false) return false;
+  if (staff.isOffDuty) return false;
+  if (date && staff.offDutyDates && staff.offDutyDates.includes(date)) return false;
+  return true;
+}
+
 export function getStaffAvailabilityForSlot(
   serviceId: ServiceId,
   date: string,
   time: string,
   allBookings: Booking[],
-  durationHours: number = 1
+  durationHours: number = 1,
+  staffList?: Staff[]
 ): StaffSlotAvailability[] {
   const service = CLINIC_SERVICES.find((s) => s.id === serviceId);
   const nextSlot = durationHours === 2 ? CONSECUTIVE_SLOT_MAP[time] : undefined;
+  const currentStaffList = staffList && staffList.length > 0 ? staffList : CLINIC_STAFF;
 
   const bookedStaffIdsSlot1 = new Set(
     allBookings
@@ -381,7 +390,17 @@ export function getStaffAvailabilityForSlot(
       )
     : new Set<string>();
 
-  return CLINIC_STAFF.map((staff) => {
+  return currentStaffList.map((staff) => {
+    // Check if staff is off duty (on leave, sick, or personal emergency)
+    if (!isStaffOnDuty(staff, date)) {
+      return {
+        staff,
+        isQualified: service ? service.qualifiedStaffIds.includes(staff.id) : false,
+        isAvailable: false,
+        reason: staff.offDutyReason ? `ปิดไม่รับคิว (${staff.offDutyReason})` : 'ปิดไม่รับคิว (ลาหยุด/ติดธุระ)',
+      };
+    }
+
     const isQualified = service ? service.qualifiedStaffIds.includes(staff.id) : false;
     if (!isQualified) {
       return {
@@ -447,7 +466,8 @@ export function findAvailableStaffForService(
   time: string,
   allBookings: Booking[],
   durationHours: number = 1,
-  preferredStaffId?: string
+  preferredStaffId?: string,
+  staffList?: Staff[]
 ): Staff | null {
   const service = CLINIC_SERVICES.find((s) => s.id === serviceId);
   if (!service) return null;
@@ -456,6 +476,8 @@ export function findAvailableStaffForService(
   if (durationHours === 2 && !nextSlot) {
     return null; // Cannot book 2 hours if no valid consecutive slot exists
   }
+
+  const currentStaffList = staffList && staffList.length > 0 ? staffList : CLINIC_STAFF;
 
   // Active bookings occupying slot 1
   const bookedStaffIdsSlot1 = new Set(
@@ -473,10 +495,10 @@ export function findAvailableStaffForService(
       )
     : new Set<string>();
 
-  // Eligible staff list for service who are available in both required slots
-  let qualifiedStaff = CLINIC_STAFF.filter(
+  // Eligible staff list for service who are on duty and available in both required slots
+  let qualifiedStaff = currentStaffList.filter(
     (s) =>
-      s.active &&
+      isStaffOnDuty(s, date) &&
       service.qualifiedStaffIds.includes(s.id) &&
       !bookedStaffIdsSlot1.has(s.id) &&
       (durationHours !== 2 || !bookedStaffIdsSlot2.has(s.id))

@@ -11,6 +11,12 @@ import {
   TimeSlot,
 } from '../types/clinic.ts';
 import { ClientClinicDB } from '../utils/clientDb.ts';
+import {
+  getTelegramConfig,
+  saveTelegramConfig,
+  sendTelegramMessage,
+  TelegramConfig,
+} from '../utils/telegram.ts';
 
 const API_BASE = '/api';
 
@@ -50,7 +56,73 @@ export const ClinicApi = {
     if (res?.ok && Array.isArray(res.data)) {
       return res.data;
     }
-    return CLINIC_STAFF;
+    return ClientClinicDB.getStaff();
+  },
+
+  async addStaff(data: {
+    code: string;
+    name: string;
+    nickname?: string;
+    role: string;
+    phone?: string;
+    avatarUrl?: string;
+    qualifiedServices?: ServiceId[];
+  }): Promise<{ success: boolean; staff?: Staff; error?: string }> {
+    const res = await safeFetchJson<any>(`${API_BASE}/staff`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (res?.ok && res.data) {
+      ClientClinicDB.addStaff(data);
+      return res.data;
+    }
+    return ClientClinicDB.addStaff(data);
+  },
+
+  async updateStaff(
+    id: string,
+    updates: Partial<Staff>
+  ): Promise<{ success: boolean; staff?: Staff; error?: string }> {
+    const res = await safeFetchJson<any>(`${API_BASE}/staff/${id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+    if (res?.ok && res.data) {
+      ClientClinicDB.updateStaff(id, updates);
+      return res.data;
+    }
+    return ClientClinicDB.updateStaff(id, updates);
+  },
+
+  async deleteStaff(id: string): Promise<{ success: boolean; error?: string }> {
+    const res = await safeFetchJson<any>(`${API_BASE}/staff/${id}`, {
+      method: 'DELETE',
+    });
+    if (res?.ok) {
+      ClientClinicDB.deleteStaff(id);
+      return { success: true };
+    }
+    return ClientClinicDB.deleteStaff(id);
+  },
+
+  async setStaffDutyStatus(
+    id: string,
+    isOffDuty: boolean,
+    reason?: string,
+    date?: string
+  ): Promise<{ success: boolean; staff?: Staff; error?: string }> {
+    const res = await safeFetchJson<any>(`${API_BASE}/staff/${id}/duty-status`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ isOffDuty, reason, date }),
+    });
+    if (res?.ok && res.data) {
+      ClientClinicDB.setStaffDutyStatus(id, isOffDuty, reason, date);
+      return res.data;
+    }
+    return ClientClinicDB.setStaffDutyStatus(id, isOffDuty, reason, date);
   },
 
   // Services
@@ -163,7 +235,6 @@ export const ClinicApi = {
 
     if (res !== null) {
       if (res.ok && res.data) {
-        // Also save to client DB for offline consistency
         if (res.data.booking) {
           ClientClinicDB.createBooking(payload);
         }
@@ -172,8 +243,34 @@ export const ClinicApi = {
       return { success: false, error: res.error || 'ไม่สามารถทำการนัดหมายได้' };
     }
 
-    // Fallback to client DB
     return ClientClinicDB.createBooking(payload);
+  },
+
+  // Edit patient booking details directly (Name, phone, symptoms, notes, staff reassign)
+  async editPatientBooking(
+    id: string,
+    updates: {
+      patientName?: string;
+      patientPhone?: string;
+      patientIdCard?: string;
+      symptoms?: string;
+      notes?: string;
+      assignedStaffId?: string;
+      timeSlot?: string;
+    }
+  ): Promise<{ success: boolean; booking?: Booking; error?: string }> {
+    const res = await safeFetchJson<any>(`${API_BASE}/bookings/${id}/edit`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    });
+
+    if (res?.ok && res.data) {
+      ClientClinicDB.editPatientBooking(id, updates);
+      return res.data;
+    }
+
+    return ClientClinicDB.editPatientBooking(id, updates);
   },
 
   // Update Status
@@ -198,7 +295,6 @@ export const ClinicApi = {
       return { success: false, error: res.error || 'ไม่สามารถอัปเดตสถานะได้' };
     }
 
-    // Fallback to client DB
     return ClientClinicDB.updateBookingStatus(id, status, assignedStaffId, notes, queueStatus);
   },
 
@@ -242,27 +338,58 @@ export const ClinicApi = {
     return ClientClinicDB.confirmSaunaGroup(date, timeSlot);
   },
 
-  // Staff Login
+  // Staff Login with Security PIN
   async login(
     username: string,
-    password: string
-  ): Promise<{ success: boolean; token?: string; user?: any; error?: string }> {
-    const res = await safeFetchJson<any>(`${API_BASE}/auth/login`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password }),
-    });
+    password: string,
+    clinicPin?: string
+  ): Promise<{ success: boolean; token?: string; user?: any; error?: string; isLocked?: boolean }> {
+    try {
+      const res = await safeFetchJson<any>(`${API_BASE}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password, clinicPin }),
+      });
 
-    if (res !== null) {
-      if (res.ok && res.data?.success) {
-        return res.data;
+      if (res !== null) {
+        if (res.ok && res.data?.success) {
+          return res.data;
+        }
+        if (res.data?.error) {
+          // If server explicitly returned an error, also test clientDb fallback before failing
+          const clientCheck = ClientClinicDB.login(username, password, clinicPin);
+          if (clientCheck.success) {
+            return clientCheck;
+          }
+          return { success: false, error: res.data.error, isLocked: res.data.isLocked };
+        }
       }
-      if (res.data?.error) {
-        return { success: false, error: res.data.error };
-      }
+    } catch {
+      // Fallback seamlessly to local client database
     }
 
-    // Fallback directly to client-side auth
-    return ClientClinicDB.login(username, password);
+    return ClientClinicDB.login(username, password, clinicPin);
+  },
+
+  // Telegram Notifications Settings
+  getTelegramSettings(): TelegramConfig {
+    return getTelegramConfig();
+  },
+
+  saveTelegramSettings(config: TelegramConfig): void {
+    saveTelegramConfig(config);
+  },
+
+  async testTelegram(config: TelegramConfig): Promise<{ success: boolean; error?: string }> {
+    const testMessage = [
+      `🔔 <b>ทดสอบการเชื่อมต่อระบบแจ้งเตือน Telegram สำเร็จ!</b>`,
+      `🏥 <b>กลุ่มงานการแพทย์แผนไทย และการแพทย์ทางเลือก</b>`,
+      `📍 <i>โรงพยาบาลพระนครศรีอยุธยา</i>`,
+      `━━━━━━━━━━━━━━━━━━`,
+      `✅ ระบบพร้อมรับการแจ้งเตือนเมื่อมีการจองคิวใหม่ หรือยกเลิกคิวแบบเรียลไทม์`,
+      `⏰ <i>เวลาทดสอบ: ${new Date().toLocaleTimeString('th-TH')} วันที่ ${new Date().toLocaleDateString('th-TH')}</i>`,
+    ].join('\n');
+
+    return await sendTelegramMessage(testMessage, config);
   },
 };

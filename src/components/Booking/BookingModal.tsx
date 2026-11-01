@@ -320,8 +320,8 @@ export const BookingModal: React.FC<BookingModalProps> = ({
               />
             </div>
             <div>
-              <span className="text-[10px] sm:text-[11px] font-semibold text-emerald-800 uppercase tracking-wider block">
-                กลุ่มงานการแพทย์แผนไทย รพ.พระนครศรีอยุธยา
+              <span className="text-[10px] sm:text-[11px] font-bold text-emerald-800 tracking-wider block">
+                ตึกแพทย์แผนไทย ศูนย์เวชปฏิบัติครอบครัว รพ.อยุธยา
               </span>
               <h3 className="text-base sm:text-lg font-bold text-stone-900 leading-tight">
                 จองคิวรับบริการคลินิกการแพทย์แผนไทย

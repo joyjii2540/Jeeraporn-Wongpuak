@@ -11,6 +11,11 @@ export interface Staff {
   role: string;
   active: boolean;
   phone?: string;
+  avatarUrl?: string; // Profile picture URL or data URL
+  isOffDuty?: boolean; // When true, staff is on sick leave / personal business
+  offDutyReason?: string; // e.g. "ลาป่วย", "ลากิจ", "ติดธุระราชการ"
+  offDutyDates?: string[]; // specific dates the assistant is on leave (YYYY-MM-DD)
+  qualifiedServices?: ServiceId[];
 }
 
 export type ServiceId = 'massage_compress' | 'postpartum_care' | 'herbal_sauna' | 'herbal_medicine';

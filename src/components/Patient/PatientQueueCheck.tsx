@@ -223,7 +223,7 @@ export const PatientQueueCheck: React.FC = () => {
           <div className="bg-black/20 rounded-xl p-3 text-xs flex items-center gap-2 text-amber-50">
             <MapPin className="w-4 h-4 shrink-0 text-amber-200" />
             <span>
-              <strong>สถานที่รับบริการ:</strong> กลุ่มงานการแพทย์แผนไทย ชั้น 2 อาคารเฉลิมพระเกียรติ โรงพยาบาลพระนครศรีอยุธยา (กรุณายื่นบัตรคิวที่โต๊ะประสานงาน)
+              <strong>สถานที่รับบริการ:</strong> ตึกแพทย์แผนไทย ศูนย์เวชปฏิบัติครอบครัว รพ.อยุธยา (โรงพยาบาลพระนครศรีอยุธยา)
             </span>
           </div>
         </div>

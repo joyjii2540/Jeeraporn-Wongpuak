@@ -4,6 +4,7 @@ import type {
   Booking,
   BookingStatus,
   ServiceId,
+  Staff,
 } from '../types/clinic.ts';
 import {
   CLINIC_SERVICES,
@@ -293,7 +294,77 @@ function loadBookingsFromFile() {
 // Load persisted bookings if available
 loadBookingsFromFile();
 
+let staffDB: Staff[] = [...CLINIC_STAFF];
+
 export const ClinicDB = {
+  getStaff: (): Staff[] => [...staffDB],
+
+  addStaff: (data: any): { success: boolean; staff?: Staff; error?: string } => {
+    const newStaff: Staff = {
+      id: `staff_${Date.now()}`,
+      code: data.code || `STF-${String(staffDB.length + 1).padStart(2, '0')}`,
+      name: data.name,
+      nickname: data.nickname,
+      role: data.role || 'ผู้ช่วยแพทย์แผนไทย',
+      active: true,
+      phone: data.phone || '',
+      avatarUrl: data.avatarUrl,
+      isOffDuty: false,
+      qualifiedServices: data.qualifiedServices || ['massage_compress', 'herbal_medicine'],
+    };
+    staffDB.push(newStaff);
+    return { success: true, staff: newStaff };
+  },
+
+  updateStaff: (id: string, updates: Partial<Staff>): { success: boolean; staff?: Staff; error?: string } => {
+    const idx = staffDB.findIndex((s) => s.id === id);
+    if (idx === -1) return { success: false, error: 'ไม่พบผู้ช่วย' };
+    staffDB[idx] = { ...staffDB[idx], ...updates };
+    return { success: true, staff: staffDB[idx] };
+  },
+
+  deleteStaff: (id: string): { success: boolean; error?: string } => {
+    staffDB = staffDB.filter((s) => s.id !== id);
+    return { success: true };
+  },
+
+  setStaffDutyStatus: (
+    id: string,
+    isOffDuty: boolean,
+    reason?: string,
+    date?: string
+  ): { success: boolean; staff?: Staff; error?: string } => {
+    const staff = staffDB.find((s) => s.id === id);
+    if (!staff) return { success: false, error: 'ไม่พบผู้ช่วย' };
+    staff.isOffDuty = isOffDuty;
+    staff.offDutyReason = reason;
+    if (date) {
+      const dates = new Set(staff.offDutyDates || []);
+      if (isOffDuty) dates.add(date);
+      else dates.delete(date);
+      staff.offDutyDates = Array.from(dates);
+    }
+    return { success: true, staff };
+  },
+
+  editPatientBooking: (id: string, updates: any): { success: boolean; booking?: Booking; error?: string } => {
+    const booking = bookingsDB.find((b) => b.id === id);
+    if (!booking) return { success: false, error: 'ไม่พบการจอง' };
+    if (updates.patientName) booking.patientName = updates.patientName.trim();
+    if (updates.patientPhone) booking.patientPhone = updates.patientPhone.trim();
+    if (updates.symptoms) booking.symptoms = updates.symptoms.trim();
+    if (updates.notes !== undefined) booking.notes = updates.notes?.trim();
+    if (updates.assignedStaffId) {
+      const staff = staffDB.find((s) => s.id === updates.assignedStaffId);
+      if (staff) {
+        booking.assignedStaffId = staff.id;
+        booking.assignedStaffName = staff.name;
+      }
+    }
+    saveBookingsToFile();
+    return { success: true, booking };
+  },
+
   getAllBookings: (): Booking[] => [...bookingsDB],
 
   getBookingById: (id: string): Booking | undefined => {
